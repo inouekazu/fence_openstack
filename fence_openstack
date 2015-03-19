@@ -206,6 +206,28 @@ function status_for_port() {
     fi
 }
 
+function get_myinstanceid() {
+    local metadataURL="http://169.254.169.254/openstack/latest/meta_data.json"
+    # extract uuid value from the JSON output
+    myinstanceid=`curl -s $metadataURL | sed 's/.*"uuid": *"\([^"]*\)".*/\1/'`
+}
+
+function check_myinstance_status() {
+    get_myinstanceid
+    if [ -z "$myinstanceid" ]; then
+	error "Failed to get my instance ID."
+        fence_done 1
+    fi
+    
+    local mystatus=`status_for_port $myinstanceid`
+    debug "myinstanceid = $myinstanceid, mystatus = $mystatus"
+    if [ "$mystatus" != "ACTIVE" ]; then
+        error "warn: This instance seems already being fenced by peer(status=$mystatus). Abort to fence others."
+        fence_done 1
+    fi
+}
+
+
 TEMP=`getopt -o qVo:e:k:c:r:n:t:U -l version,help,region:,action:,port:,option:,home:,region:,cert:,tenant:,user:,password:,unknown-are-stopped \
      -n 'fence_openstack' -- "$@"`
 
@@ -274,6 +296,11 @@ instance=""
 if [ ! -z "$port" ]; then
     instance=`instance_for_port $port`
 fi
+
+# Check if this instance had already been fenced by peer to avoid "double knockout".
+# There still might be a race condition between checking my status and changing the peer's status via API,
+# so having a different delay on each nodes before running this fencing agent would be also helpful.
+check_myinstance_status
 
 case $action in 
     metadata) metadata;;
