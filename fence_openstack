@@ -207,7 +207,7 @@ function status_for_port() {
 }
 
 TEMP=`getopt -o qVo:e:k:c:r:n:t:U -l version,help,region:,action:,port:,option:,home:,region:,cert:,tenant:,user:,password:,unknown-are-stopped \
-     -n 'fence_ec2' -- "$@"`
+     -n 'fence_openstack' -- "$@"`
 
 if [ $? != 0 ];then 
     usage
