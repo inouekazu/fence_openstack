@@ -212,7 +212,18 @@ function get_myinstanceid() {
     myinstanceid=`curl -s $metadataURL | sed 's/.*"uuid": *"\([^"]*\)".*/\1/'`
 }
 
-function check_myinstance_status() {
+# Check and abort the fencing operation if this instance had
+# already been fenced by peer to avoid "double knockout".
+#
+# Notes for development;
+# This still does not work yet since the status changes to "REBOOT" at the same time on both nodes.
+# There still is a race condition between checking my status and changing the peer's status via API,
+# so having a different delay on each nodes before running this fencing agent would be also helpful.
+#
+# is_myinstance_fenced() must be called only when necessary otherwise metadata can not be retrieved.
+# Mar 19 04:44:51 lbweb01 stonithd[17553]:    error: get_agent_metadata: Could not retrieve metadata for fencing agent fence_openstack
+#
+function is_myinstance_fenced() {
     get_myinstanceid
     if [ -z "$myinstanceid" ]; then
 	error "Failed to get my instance ID."
@@ -220,7 +231,8 @@ function check_myinstance_status() {
     fi
     
     local mystatus=`status_for_port $myinstanceid`
-    debug "myinstanceid = $myinstanceid, mystatus = $mystatus"
+    # DEBUG log ; should be removed later.
+    error "debug: myinstanceid = $myinstanceid, mystatus = $mystatus"
     if [ "$mystatus" != "ACTIVE" ]; then
         error "warn: This instance seems already being fenced by peer(status=$mystatus). Abort to fence others."
         fence_done 1
@@ -297,11 +309,6 @@ if [ ! -z "$port" ]; then
     instance=`instance_for_port $port`
 fi
 
-# Check if this instance had already been fenced by peer to avoid "double knockout".
-# There still might be a race condition between checking my status and changing the peer's status via API,
-# so having a different delay on each nodes before running this fencing agent would be also helpful.
-check_myinstance_status
-
 case $action in 
     metadata) metadata;;
 
@@ -332,6 +339,7 @@ case $action in
 	;;
 
     reboot)
+	is_myinstance_fenced
 	state=`status_for_port $instance`
 	case $state in
 	    UNKNOWN) 
@@ -373,6 +381,7 @@ case $action in
 	;;
 
     stop)
+	is_myinstance_fenced
 	state=`status_for_port $instance`
 	case $state in
 	    UNKNOWN) 
