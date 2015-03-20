@@ -359,7 +359,7 @@ case $action in
 		    state=`status_for_port $instance`
 		done
 		$nova $action $instance;;
-	    ACTIVE)  $nova $action $instance;;
+	    ACTIVE)  $nova $action --hard $instance;;
 	    STOPPED) $nova start $instance;;
 	    *) error "Cannot $action instance $port in unexpected state: $status"; fence_done 1;;
 	esac
