@@ -201,6 +201,8 @@ function status_for_port() {
 	else
 	    echo "UNKNOWN"
 	fi
+    elif [ $status = SHUTOFF ]; then
+	echo "STOPPED"
     else
 	echo $status
     fi
@@ -351,18 +353,26 @@ case $action in
 		while [ $state != ACTIVE ]; do
 		    state=`status_for_port $instance`
 		done
-		$nova $action $instance
+		$nova stop $instance
 	        ;;
 	    PAUSED)
 		$nova unpause $instance
 		while [ $state != ACTIVE ]; do
 		    state=`status_for_port $instance`
 		done
-		$nova $action $instance;;
-	    ACTIVE)  $nova $action --hard $instance;;
-	    STOPPED) $nova start $instance;;
+		$nova stop $instance;;
+	    ACTIVE)  $nova stop $instance;;
+	    STOPPED) debug "Already stopped";;
 	    *) error "Cannot $action instance $port in unexpected state: $status"; fence_done 1;;
 	esac
+
+	while [ $state != STOPPED ]; do
+	    state=`status_for_port $instance`
+	done
+	$nova start $instance
+	while [ $state != ACTIVE ]; do
+	    state=`status_for_port $instance`
+	done
 	;;
 
     start)
@@ -378,6 +388,10 @@ case $action in
 	    STOPPED)   $nova $action $instance;;
 	    *) error "Cannot $action instance $port in unexpected state: $status"; fence_done 1;;
 	esac
+
+	while [ $state != ACTIVE ]; do
+	    state=`status_for_port $instance`
+	done
 	;;
 
     stop)
@@ -393,7 +407,12 @@ case $action in
 		# But for all intensive purposes they are already in a safe state
 		debug "$instance is $state"
 		;;
-	    ACTIVE)    $nova $action $instance;;
+	    ACTIVE)
+		$nova $action $instance
+		while [ $state != STOPPED ]; do
+		    state=`status_for_port $instance`
+		done
+		;;
 	    *) error "Cannot perform $action action on instance $port in unexpected state: $status"; fence_done 1;;
 	esac
 	;;
